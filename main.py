@@ -1,5 +1,8 @@
+import hashlib
 import re
+import threading
 import tkinter as tk
+import urllib.request
 
 COMMON_PASSWORDS = {
     "password", "password1", "password123", "123456", "123456789", "12345678",
@@ -71,11 +74,25 @@ def check_password_strength(password: str) -> dict:
     return {"score": score, "max_score": 6, "strength": strength, "issues": issues}
 
 
+def check_pwned(password: str) -> int:
+    """Returns the number of times the password appeared in HIBP breaches (0 = not found)."""
+    sha1 = hashlib.sha1(password.encode()).hexdigest().upper()
+    prefix, suffix = sha1[:5], sha1[5:]
+    url = f"https://api.pwnedpasswords.com/range/{prefix}"
+    with urllib.request.urlopen(url, timeout=5) as resp:
+        body = resp.read().decode()
+    for line in body.splitlines():
+        h, count = line.split(":")
+        if h == suffix:
+            return int(count)
+    return 0
+
+
 class PasswordCheckerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Password Checker")
-        self.root.geometry("420x380")
+        self.root.geometry("420x440")
         self.root.resizable(False, False)
         self.root.configure(bg="#1e1e2e")
 
@@ -130,6 +147,22 @@ class PasswordCheckerApp:
         self.suggestions_frame = tk.Frame(self.root, bg=bg)
         self.suggestions_frame.pack(padx=32, fill="x", pady=(4, 0))
 
+        # HIBP section
+        tk.Frame(self.root, bg="#45475a", height=1).pack(fill="x", padx=32, pady=(16, 8))
+
+        self.pwned_btn = tk.Button(
+            self.root, text="Check if Pwned",
+            command=self._start_pwned_check,
+            font=("Helvetica", 11), bg="#313244", fg=fg,
+            activebackground="#45475a", activeforeground=fg,
+            relief="flat", padx=12, pady=6, cursor="hand2",
+        )
+        self.pwned_btn.pack()
+
+        self.pwned_label = tk.Label(self.root, text="", font=("Helvetica", 11),
+                                    bg=bg, fg=fg, wraplength=356)
+        self.pwned_label.pack(pady=(8, 0))
+
         self.entry.focus()
 
     def _toggle_show(self):
@@ -140,6 +173,8 @@ class PasswordCheckerApp:
 
         for widget in self.suggestions_frame.winfo_children():
             widget.destroy()
+
+        self.pwned_label.config(text="")
 
         if not password:
             for seg in self.segments:
@@ -171,6 +206,41 @@ class PasswordCheckerApp:
                 font=("Helvetica", 10), bg="#1e1e2e", fg="#a6e3a1",
                 anchor="w",
             ).pack(fill="x")
+
+    def _start_pwned_check(self):
+        password = self.password_var.get()
+        if not password:
+            self.pwned_label.config(text="Enter a password first.", fg="#a6adc8")
+            return
+
+        self.pwned_btn.config(state="disabled", text="Checking...")
+        self.pwned_label.config(text="", fg="#cdd6f4")
+
+        threading.Thread(target=self._run_pwned_check, args=(password,), daemon=True).start()
+
+    def _run_pwned_check(self, password: str):
+        try:
+            count = check_pwned(password)
+            self.root.after(0, self._show_pwned_result, count)
+        except Exception:
+            self.root.after(0, self._show_pwned_error)
+
+    def _show_pwned_result(self, count: int):
+        self.pwned_btn.config(state="normal", text="Check if Pwned")
+        if count > 0:
+            self.pwned_label.config(
+                text=f"Compromised! Found {count:,} times in data breaches.",
+                fg="#f38ba8",
+            )
+        else:
+            self.pwned_label.config(
+                text="Not found in any known data breaches.",
+                fg="#a6e3a1",
+            )
+
+    def _show_pwned_error(self):
+        self.pwned_btn.config(state="normal", text="Check if Pwned")
+        self.pwned_label.config(text="Could not reach HIBP — check your connection.", fg="#f9e2af")
 
 
 def main():
