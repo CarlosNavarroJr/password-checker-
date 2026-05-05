@@ -222,8 +222,8 @@ class PasswordCheckerApp:
         try:
             count = check_pwned(password)
             self.root.after(0, self._show_pwned_result, count)
-        except Exception:
-            self.root.after(0, self._show_pwned_error)
+        except Exception as e:
+            self.root.after(0, self._show_pwned_error, str(e))
 
     def _show_pwned_result(self, count: int):
         self.pwned_btn.config(state="normal", text="Check if Pwned")
@@ -238,9 +238,9 @@ class PasswordCheckerApp:
                 fg="#a6e3a1",
             )
 
-    def _show_pwned_error(self):
+    def _show_pwned_error(self, error: str = ""):
         self.pwned_btn.config(state="normal", text="Check if Pwned")
-        self.pwned_label.config(text="Could not reach HIBP — check your connection.", fg="#f9e2af")
+        self.pwned_label.config(text=f"Error: {error}", fg="#f9e2af")
 
 
 def main():
