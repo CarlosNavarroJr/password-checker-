@@ -1,9 +1,26 @@
 import re
 
+COMMON_PASSWORDS = {
+    "password", "password1", "password123", "123456", "123456789", "12345678",
+    "1234567", "1234567890", "qwerty", "qwerty123", "abc123", "letmein",
+    "monkey", "dragon", "master", "sunshine", "princess", "welcome", "shadow",
+    "superman", "michael", "football", "baseball", "soccer", "hockey",
+    "iloveyou", "trustno1", "hello", "charlie", "donald", "password!",
+    "admin", "login", "pass", "test", "guest", "root", "toor", "changeme",
+}
+
 
 def check_password_strength(password: str) -> dict:
     issues = []
     score = 0
+
+    if password.lower() in COMMON_PASSWORDS:
+        return {
+            "score": 0,
+            "max_score": 6,
+            "strength": "Very Weak",
+            "issues": ["This is one of the most common passwords — choose something unique"],
+        }
 
     if len(password) >= 8:
         score += 1
